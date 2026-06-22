@@ -12,9 +12,11 @@
     <h1 class="text-2xl font-bold">JobHorizon</h1>
     <div class="flex gap-2">
       <a href="/api/export.csv" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-100">Export CSV</a>
+      <button id="search-now-btn" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-100">Search now</button>
       <button id="update-criteria-btn" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-100">Update criteria</button>
     </div>
   </div>
+  <div id="search-status" class="text-sm text-gray-500 mb-2"></div>
 
   {% if criteria %}
   <div class="text-sm text-gray-600 mb-4">
@@ -175,6 +177,25 @@ async function tailorResume(jobId) {
   container.innerHTML = links.join(" &middot; ") + flagNote;
 }
 
+async function searchNow() {
+  const status = document.getElementById("search-status");
+  const btn = document.getElementById("search-now-btn");
+  btn.disabled = true;
+  status.textContent = "Searching (fetches fresh listings, can take a few seconds)...";
+  try {
+    const res = await fetch("/api/search-now", { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) {
+      status.textContent = body.error || "Search failed";
+      return;
+    }
+    status.textContent = `Fetched ${body.n_fetched} (${body.n_new} new) from ${body.sources.join(", ") || "no sources"} - ${body.n_gate_passed} passed your gates.`;
+    await loadJobs();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function loadJobs() {
   const res = await fetch(`/api/jobs?tab=${currentTab}&threshold=${threshold}`);
   const jobs = await res.json();
@@ -220,6 +241,9 @@ async function submitCriteria() {
     );
     if (!ok) return;
   }
+  const confirmBtn = document.getElementById("criteria-confirm-btn");
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Saving and searching...";
   const payload = {
     confirm: true,
     full_reset: document.getElementById("f-full-reset").checked,
@@ -237,16 +261,21 @@ async function submitCriteria() {
     body: JSON.stringify(payload),
   });
   if (res.ok) {
+    closeCriteriaModal();
+    await fetch("/api/search-now", { method: "POST" });
     window.location.reload();
   } else {
     const body = await res.json();
     alert(body.error || "Failed to update criteria");
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "Confirm";
   }
 }
 
 document.getElementById("update-criteria-btn").addEventListener("click", openCriteriaModal);
 document.getElementById("criteria-cancel-btn").addEventListener("click", closeCriteriaModal);
 document.getElementById("criteria-confirm-btn").addEventListener("click", submitCriteria);
+document.getElementById("search-now-btn").addEventListener("click", searchNow);
 
 if (hasCriteria) {
   const slider = document.getElementById("threshold-slider");

@@ -4,9 +4,10 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 from jobhorizon import criteria as criteria_mod
-from jobhorizon import db, features, tailoring
+from jobhorizon import db, features, learner, tailoring
 from jobhorizon.config import load_config
 from jobhorizon.paths import OUTPUTS_DIR
+from jobhorizon.pipeline import run_pipeline
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -122,6 +123,27 @@ def create_app() -> Flask:
         criteria_mod.save_criteria(conn, criteria)
         conn.close()
         return jsonify({"ok": True})
+
+    @app.route("/api/search-now", methods=["POST"])
+    def api_search_now():
+        conn = db.get_connection()
+        criteria = criteria_mod.load_active_criteria(conn)
+        if criteria is None:
+            conn.close()
+            return jsonify({"error": "no active criteria"}), 400
+
+        app_config = load_config()
+        result = run_pipeline(conn, criteria, app_config)
+        learner.maybe_retrain_and_rescore(conn, criteria, app_config)
+        conn.close()
+        return jsonify(
+            {
+                "n_fetched": result["n_fetched"],
+                "n_new": result["n_new"],
+                "n_gate_passed": result["n_gate_passed"],
+                "sources": result["sources"],
+            }
+        )
 
     @app.route("/api/export.csv")
     def api_export_csv():
