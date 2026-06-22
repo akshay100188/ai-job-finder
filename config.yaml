@@ -1,0 +1,29 @@
+sources:
+  adzuna:   { enabled: false, country: in }   # needs ADZUNA_APP_ID/KEY in .env
+  jooble:   { enabled: false }                # needs JOOBLE_KEY in .env
+  remoteok: { enabled: true }
+  himalayas: { enabled: true }
+  remotive: { enabled: true }
+  arbeitnow: { enabled: true }
+  jobicy:   { enabled: true }
+  wwr:      { enabled: true, categories: ["remote-jobs"] }
+  jobspy:   { enabled: false, sites: [indeed, naukri, google, linkedin], results_wanted: 25 }
+
+filter:
+  recall_bias: true            # ambiguous gate -> let through
+  location_aliases:            # hybrid acceptance list
+    accept: ["noida", "greater noida"]
+    reject: ["gurgaon", "gurugram"]
+  recency_days: 30
+
+scoring:
+  skill_weights: {}            # optional per-skill weights; default 1.0
+  domain_keywords: ["fixed income", "capital markets", "trading", "fintech", "derivatives", "regulatory"]
+  domain_boost: 0.1
+  learner_min_labels: 40
+
+fx_rates_to_inr:               # offline, user-editable; pay gate compares in INR
+  INR: 1.0
+  USD: 86.0
+  EUR: 93.0
+  GBP: 108.0
