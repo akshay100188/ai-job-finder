@@ -40,6 +40,7 @@ class JobSpyAdapter(JobSourceAdapter):
                     location=criteria.location,
                     results_wanted=self.results_wanted,
                     country_indeed="india",
+                    linkedin_fetch_description=True,
                 )
             except Exception as exc:
                 logger.warning("jobspy scrape failed for '%s': %s", title, exc)

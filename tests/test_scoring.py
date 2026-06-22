@@ -40,3 +40,21 @@ def test_word_boundary_prevents_substring_match(sample_criteria, scoring_cfg):
     job = {"title": "Senior Recruiter", "description": ""}
     result = score_job(job, sample_criteria, scoring_cfg)
     assert result["skills_matched"] == 0
+
+
+def test_title_boost_added_on_exact_title_match(sample_criteria, scoring_cfg):
+    job = {"title": "Backend Engineer", "description": ""}
+    result = score_job(job, sample_criteria, scoring_cfg)
+    assert round(result["score"], 4) == round(scoring_cfg.title_boost, 4)
+
+
+def test_title_boost_added_on_variant_title_match(sample_criteria, scoring_cfg):
+    job = {"title": "Senior Backend Engineer", "description": ""}
+    result = score_job(job, sample_criteria, scoring_cfg)
+    assert round(result["score"], 4) == round(scoring_cfg.title_boost, 4)
+
+
+def test_title_boost_not_added_when_title_unrelated(sample_criteria, scoring_cfg):
+    job = {"title": "Frontend Engineer", "description": ""}
+    result = score_job(job, sample_criteria, scoring_cfg)
+    assert result["score"] == 0.0
