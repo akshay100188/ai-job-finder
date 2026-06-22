@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from jobhorizon import db
+from jobhorizon import dashboard as dashboard_mod
+from jobhorizon import db, tailoring
 from jobhorizon.dashboard import create_app
 
 
@@ -196,3 +197,84 @@ def test_api_export_csv_returns_csv_content_type(client, conn):
     assert res.status_code == 200
     assert res.mimetype == "text/csv"
     assert "j1" in res.get_data(as_text=True)
+
+
+def test_api_tailor_requires_job_id(client, conn):
+    res = client.post("/api/tailor", json={})
+    assert res.status_code == 400
+
+
+def test_api_tailor_success(client, conn, monkeypatch):
+    _seed_criteria(conn)
+    _seed_job(conn, "j1", score=0.8, gate_passed=True, status="relevant")
+
+    monkeypatch.setattr(
+        tailoring,
+        "tailor_job",
+        lambda conn_, job_id, app_config: {
+            "id": 1,
+            "lint_status": "clean",
+            "lint_flags": [],
+            "docx_path": "outputs/tailored/x.docx",
+            "md_path": "outputs/tailored/x.md",
+            "gap_report_path": "outputs/tailored/x_gaps.md",
+        },
+    )
+
+    res = client.post("/api/tailor", json={"job_id": "j1"})
+
+    assert res.status_code == 200
+    assert res.get_json()["lint_status"] == "clean"
+
+
+def test_api_tailor_propagates_value_error_as_400(client, conn, monkeypatch):
+    _seed_criteria(conn)
+    _seed_job(conn, "j1", score=0.8, gate_passed=True)  # status stays "new"
+
+    def _raise(conn_, job_id, app_config):
+        raise ValueError("job must be marked relevant before tailoring")
+
+    monkeypatch.setattr(tailoring, "tailor_job", _raise)
+
+    res = client.post("/api/tailor", json={"job_id": "j1"})
+
+    assert res.status_code == 400
+    assert "relevant" in res.get_json()["error"]
+
+
+def test_api_tailored_requires_job_id(client, conn):
+    res = client.get("/api/tailored")
+    assert res.status_code == 400
+
+
+def test_api_tailored_lists_records(client, conn):
+    _seed_criteria(conn)
+    _seed_job(conn, "j1", score=0.8, gate_passed=True)
+    db.insert_tailored_resume(
+        conn,
+        {
+            "job_id": "j1",
+            "docx_path": "x.docx",
+            "md_path": "x.md",
+            "gap_report_path": "x_gaps.md",
+            "lint_status": "clean",
+            "lint_flags": "[]",
+        },
+    )
+
+    res = client.get("/api/tailored?job_id=j1")
+
+    assert res.status_code == 200
+    body = res.get_json()
+    assert len(body) == 1
+    assert body[0]["lint_status"] == "clean"
+
+
+def test_serve_output_returns_file(client, conn, tmp_path, monkeypatch):
+    monkeypatch.setattr(dashboard_mod, "OUTPUTS_DIR", tmp_path)
+    (tmp_path / "resume.docx").write_bytes(b"fake docx bytes")
+
+    res = client.get("/outputs/resume.docx")
+
+    assert res.status_code == 200
+    assert res.data == b"fake docx bytes"

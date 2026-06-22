@@ -50,3 +50,12 @@ CREATE TABLE IF NOT EXISTS runs (                      -- observability
     run_id INTEGER PRIMARY KEY, ts TEXT, criteria_id INTEGER, sources TEXT,
     n_fetched INTEGER, n_new INTEGER, n_gate_passed INTEGER, notes TEXT
 );
+
+-- PERSISTENT (Phase 3 -- one row per tailoring run, kept across criteria updates)
+CREATE TABLE IF NOT EXISTS tailored_resumes (
+    id INTEGER PRIMARY KEY, job_id TEXT REFERENCES jobs(job_id),
+    created_at TEXT,
+    docx_path TEXT, md_path TEXT, gap_report_path TEXT,
+    lint_status TEXT,                    -- 'clean' | 'flagged'
+    lint_flags TEXT                      -- JSON: offending items if flagged
+);

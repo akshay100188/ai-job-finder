@@ -165,6 +165,11 @@ def update_review_status(conn: sqlite3.Connection, job_id: str, status: str, fro
     conn.commit()
 
 
+def get_review_status(conn: sqlite3.Connection, job_id: str) -> str | None:
+    row = conn.execute("SELECT status FROM review WHERE job_id = ?", (job_id,)).fetchone()
+    return row["status"] if row else None
+
+
 def get_job_with_score(conn: sqlite3.Connection, job_id: str) -> dict | None:
     row = conn.execute(
         """SELECT j.*, s.skills_matched, s.skills_matched_list, s.score
@@ -250,6 +255,40 @@ def clear_corpus(conn: sqlite3.Connection, also_clear_labels: bool = False) -> N
     if also_clear_labels:
         conn.execute("DELETE FROM labels")
     conn.commit()
+
+
+# --- tailored resumes (Phase 3) ----------------------------------------------
+
+
+def insert_tailored_resume(conn: sqlite3.Connection, row: dict) -> int:
+    cur = conn.execute(
+        """INSERT INTO tailored_resumes (job_id, created_at, docx_path, md_path,
+               gap_report_path, lint_status, lint_flags)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            row["job_id"],
+            now_iso(),
+            row.get("docx_path"),
+            row.get("md_path"),
+            row.get("gap_report_path"),
+            row["lint_status"],
+            row.get("lint_flags", "[]"),
+        ),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def fetch_tailored_resumes(conn: sqlite3.Connection, job_id: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM tailored_resumes WHERE job_id = ? ORDER BY id DESC", (job_id,)
+    ).fetchall()
+    results = []
+    for row in rows:
+        d = dict(row)
+        d["lint_flags"] = json.loads(d.get("lint_flags") or "[]")
+        results.append(d)
+    return results
 
 
 # --- runs -------------------------------------------------------------------

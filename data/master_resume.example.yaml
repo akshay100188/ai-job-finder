@@ -1,0 +1,54 @@
+# Master resume -- single source of truth for Phase 3 resume tailoring.
+#
+# Copy this file to data/master_resume.yaml (gitignored, since it holds your real
+# personal/career data) and fill it in once. Every number, employer, role, date,
+# and skill in your filled-in copy becomes the "fact set" the fabrication lint
+# checks tailored output against -- only put things here that are literally true.
+
+contact:
+  name: "Jane Doe"
+  email: "jane.doe@example.com"
+  phone: "+91-90000-00000"
+  location: "Noida, India"
+  linkedin: "linkedin.com/in/janedoe"
+  website: ""
+
+summary: "Backend engineer with 6 years building data-intensive trading and risk systems."
+
+experience:
+  - company: "Example Capital Markets Pvt Ltd"
+    role: "Senior Backend Engineer"
+    start: "2022-04"
+    end: "present"
+    location: "Noida, India"
+    bullets:
+      - "Rebuilt the intraday risk pipeline in Python, cutting end-to-end latency from 40 minutes to 9 minutes."
+      - "Led a 3-person team migrating 12 batch jobs from cron to an Airflow DAG, eliminating 2 recurring P1 incidents per quarter."
+    skills: ["Python", "SQL", "AWS", "Airflow"]
+  - company: "Example Fintech Inc"
+    role: "Backend Engineer"
+    start: "2019-06"
+    end: "2022-03"
+    location: "Remote"
+    bullets:
+      - "Built a fixed-income settlement reconciliation service handling 50,000 trades/day."
+    skills: ["Python", "PostgreSQL"]
+
+skills: ["Python", "SQL", "AWS", "Airflow", "PostgreSQL", "Docker"]
+
+certifications:
+  - name: "AWS Certified Solutions Architect - Associate"
+    issuer: "Amazon Web Services"
+    date: "2023-05"
+
+education:
+  - degree: "B.Tech, Computer Science"
+    institution: "Example Institute of Technology"
+    year: "2019"
+
+projects:
+  - name: "Personal trading signal backtester"
+    description: "Side project backtesting simple technical signals against NSE daily data."
+    bullets:
+      - "Built a vectorized backtester in pandas covering 10 years of NSE daily price data."
+    skills: ["Python", "pandas"]

@@ -111,6 +111,9 @@ function jobCard(job) {
     ? `<div class="text-xs text-gray-500">Posted by: ${escapeHtml(job.poster_name || "")} ${escapeHtml(job.poster_email || "")}</div>`
     : "";
   const externalIdLine = job.external_id ? `<span class="text-xs text-gray-400">#${escapeHtml(job.external_id)}</span>` : "";
+  const tailorBtn = job.status === "relevant"
+    ? `<button class="px-3 py-1 text-sm rounded border border-blue-600 text-blue-700" onclick="tailorResume('${job.job_id}')">Tailor resume</button>`
+    : "";
 
   return `
     <div class="bg-white border rounded-lg p-4 flex justify-between gap-4">
@@ -125,12 +128,42 @@ function jobCard(job) {
         <div class="text-sm" title="Matched: ${escapeHtml(skillsTitle)}">Score ${job.score.toFixed(2)} &middot; ${job.skills_matched} skills matched (${escapeHtml(job.model_source)})</div>
         ${posterLine}
         <a href="${escapeHtml(job.url)}" target="_blank" class="text-sm text-blue-600 underline">Apply link</a>
+        <div id="tailor-${job.job_id}" class="text-xs mt-1"></div>
       </div>
       <div class="flex flex-col gap-1 shrink-0">
         <button class="px-3 py-1 text-sm rounded bg-green-600 text-white" onclick="mark('${job.job_id}', true)">Relevant</button>
         <button class="px-3 py-1 text-sm rounded bg-red-600 text-white" onclick="mark('${job.job_id}', false)">Irrelevant</button>
+        ${tailorBtn}
       </div>
     </div>`;
+}
+
+function outputUrl(path) {
+  const filename = (path || "").split(/[\\/]/).pop();
+  return `/outputs/${encodeURIComponent(filename)}`;
+}
+
+async function tailorResume(jobId) {
+  const container = document.getElementById(`tailor-${jobId}`);
+  container.textContent = "Tailoring (calls your LLM key, takes a few seconds)...";
+  const res = await fetch("/api/tailor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    container.textContent = body.error || "Tailoring failed";
+    return;
+  }
+  const links = [];
+  if (body.docx_path) links.push(`<a class="text-blue-600 underline" href="${outputUrl(body.docx_path)}" target="_blank">.docx</a>`);
+  if (body.md_path) links.push(`<a class="text-blue-600 underline" href="${outputUrl(body.md_path)}" target="_blank">.md</a>`);
+  links.push(`<a class="text-blue-600 underline" href="${outputUrl(body.gap_report_path)}" target="_blank">gaps</a>`);
+  const flagNote = body.lint_status === "flagged"
+    ? `<div class="text-amber-700">Lint flagged ${body.lint_flags.length} item(s) - shipped with your original wording instead.</div>`
+    : "";
+  container.innerHTML = links.join(" &middot; ") + flagNote;
 }
 
 async function loadJobs() {

@@ -15,11 +15,17 @@ everything in a local SQLite file for review.
   that refits a LogisticRegression on your labels once `scoring.learner_min_labels`
   is reached, with a feature-weight transparency report and precision@K /
   discard-rescue metrics printed each run.
-- **Phase 3 (out of scope, separate spec)** — resume tailoring via an LLM (BYOK).
-  This is the only phase that would touch an LLM; nothing in the daily loop does.
-  Not built as part of this project — would need its own build brief.
+- **Phase 3 — resume tailoring.** Bring-your-own Anthropic API key. For any job marked
+  relevant, `POST /api/tailor` (or the "Tailor resume" button on its card) extracts JD
+  requirements, selects + reorders the most relevant bullets from your master resume
+  (`data/master_resume.yaml`, gitignored), rephrases them in the JD's vocabulary, runs a
+  deterministic + LLM fabrication lint against your master resume's fact set, and renders
+  a `.docx`/`.md` plus a gap report to `outputs/tailored/` (gitignored). If the lint flags
+  anything, the whole batch falls back to your original wording rather than risk shipping
+  an unverifiable claim. This is the only phase that touches an LLM; nothing in the daily
+  pipeline loop does.
 
-JobHorizon v1 is complete as of Phase 2.
+JobHorizon is complete through Phase 3.
 
 ## Setup
 
@@ -33,6 +39,10 @@ copy .env.example .env          # or: cp .env.example .env
 Edit `.env` with any API keys you have (Adzuna, Jooble — both optional, the no-key
 Tier A sources work without them). Edit `config.yaml` to enable/disable sources and
 tune the filter/scoring knobs.
+
+For Phase 3 resume tailoring, also copy `data/master_resume.example.yaml` to
+`data/master_resume.yaml`, fill in your real history, and set `ANTHROPIC_API_KEY` in
+`.env`. Both files are gitignored since they hold personal data.
 
 ## Run
 

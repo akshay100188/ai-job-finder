@@ -29,10 +29,20 @@ class ScoringConfig:
 
 
 @dataclass
+class TailoringConfig:
+    model_extract: str = "claude-haiku-4-5-20251001"
+    model_rephrase: str = "claude-sonnet-4-6"
+    include_tailored_summary: bool = True
+    output_formats: list[str] = field(default_factory=lambda: ["docx", "md"])
+    run_lint_llm_pass: bool = True
+
+
+@dataclass
 class Secrets:
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
     jooble_key: str = ""
+    anthropic_api_key: str = ""
 
 
 @dataclass
@@ -42,6 +52,7 @@ class AppConfig:
     scoring: ScoringConfig
     fx_rates_to_inr: dict
     secrets: Secrets
+    tailoring: TailoringConfig = field(default_factory=TailoringConfig)
 
 
 def load_config() -> AppConfig:
@@ -68,16 +79,27 @@ def load_config() -> AppConfig:
         learner_min_labels=scoring_raw.get("learner_min_labels", 40),
     )
 
+    tailoring_raw = raw.get("tailoring", {})
+    tailoring_cfg = TailoringConfig(
+        model_extract=tailoring_raw.get("model_extract", "claude-haiku-4-5-20251001"),
+        model_rephrase=tailoring_raw.get("model_rephrase", "claude-sonnet-4-6"),
+        include_tailored_summary=tailoring_raw.get("include_tailored_summary", True),
+        output_formats=tailoring_raw.get("output_formats", ["docx", "md"]) or ["docx", "md"],
+        run_lint_llm_pass=tailoring_raw.get("run_lint_llm_pass", True),
+    )
+
     secrets = Secrets(
         adzuna_app_id=os.environ.get("ADZUNA_APP_ID", ""),
         adzuna_app_key=os.environ.get("ADZUNA_APP_KEY", ""),
         jooble_key=os.environ.get("JOOBLE_KEY", ""),
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
     )
 
     return AppConfig(
         sources=raw.get("sources", {}),
         filter=filter_cfg,
         scoring=scoring_cfg,
+        tailoring=tailoring_cfg,
         fx_rates_to_inr=raw.get("fx_rates_to_inr", {"INR": 1.0}),
         secrets=secrets,
     )

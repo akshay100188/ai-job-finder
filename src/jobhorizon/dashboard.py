@@ -1,11 +1,12 @@
 import io
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 from jobhorizon import criteria as criteria_mod
-from jobhorizon import db, features
+from jobhorizon import db, features, tailoring
 from jobhorizon.config import load_config
+from jobhorizon.paths import OUTPUTS_DIR
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -142,6 +143,36 @@ def create_app() -> Flask:
             mimetype="text/csv",
             headers={"Content-Disposition": "attachment; filename=jobhorizon_export.csv"},
         )
+
+    @app.route("/api/tailor", methods=["POST"])
+    def api_tailor():
+        payload = request.get_json(force=True) or {}
+        job_id = payload.get("job_id")
+        if not job_id:
+            return jsonify({"error": "job_id is required"}), 400
+
+        conn = db.get_connection()
+        try:
+            report = tailoring.tailor_job(conn, job_id, load_config())
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        finally:
+            conn.close()
+        return jsonify(report)
+
+    @app.route("/api/tailored")
+    def api_tailored():
+        job_id = request.args.get("job_id")
+        if not job_id:
+            return jsonify({"error": "job_id is required"}), 400
+        conn = db.get_connection()
+        rows = db.fetch_tailored_resumes(conn, job_id)
+        conn.close()
+        return jsonify(rows)
+
+    @app.route("/outputs/<path:filename>")
+    def serve_output(filename):
+        return send_from_directory(OUTPUTS_DIR, filename, as_attachment=True)
 
     return app
 
