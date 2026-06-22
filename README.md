@@ -24,8 +24,14 @@ everything in a local SQLite file for review.
   anything, the whole batch falls back to your original wording rather than risk shipping
   an unverifiable claim. This is the only phase that touches an LLM; nothing in the daily
   pipeline loop does.
+- **Phase 4 — domain keywords.** Domain keywords moved from a static `config.yaml` list
+  to a per-criteria field you set during onboarding ("Domain keywords to boost" in the
+  update-criteria form, up to 10). They boost `score_job` the same way as before and now
+  also show up per-job as a matched-keyword count/list. Set `scoring.domain_as_gate: true`
+  in `config.yaml` to make a domain-keyword match a hard gate instead of just a boost
+  (jobs with zero matches get rejected with `gate_reason=domain_not_matched`).
 
-JobHorizon is complete through Phase 3.
+JobHorizon is complete through Phase 4.
 
 ## Setup
 

@@ -18,8 +18,8 @@ filter:
 
 scoring:
   skill_weights: {}            # optional per-skill weights; default 1.0
-  domain_keywords: ["fixed income", "capital markets", "trading", "fintech", "derivatives", "regulatory"]
-  domain_boost: 0.1
+  domain_boost: 0.1            # domain keywords now come from your criteria, not this file
+  domain_as_gate: false        # if true, a job with zero domain-keyword hits is gated out
   learner_min_labels: 40
 
 tailoring:                     # Phase 3 only -- the only section that touches an LLM (BYOK)

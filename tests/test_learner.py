@@ -118,7 +118,7 @@ def test_train_model_fits_with_both_classes(conn):
     assert len(report["top_features"]) > 0
 
 
-def test_score_with_learner_returns_clamped_probabilities(conn, scoring_cfg, filter_cfg):
+def test_score_with_learner_returns_clamped_probabilities(conn, filter_cfg):
     for i in range(5):
         _insert_label(conn, relevant=True, title=f"Python Engineer {i}")
     for i in range(5):
@@ -143,7 +143,7 @@ def test_score_with_learner_returns_clamped_probabilities(conn, scoring_cfg, fil
             "location": "Noida",
         }
     ]
-    scores = learner.score_with_learner(pipeline, job_rows, scoring_cfg, filter_cfg.location_aliases)
+    scores = learner.score_with_learner(pipeline, job_rows, [], filter_cfg.location_aliases)
 
     assert len(scores) == 1
     assert 0.0 <= scores[0] <= 1.0

@@ -1,3 +1,4 @@
+from jobhorizon.config import ScoringConfig
 from jobhorizon.filters import evaluate_gates
 
 
@@ -65,4 +66,38 @@ def test_any_mode_ignores_work_type_and_location(sample_criteria, filter_cfg, fx
     sample_criteria.working_mode = "any"
     job = _job_row(work_type="onsite", location="Gurgaon", salary_max_inr=2000000)
     passed, _ = evaluate_gates(job, sample_criteria, filter_cfg, fx_rates)
+    assert passed is True
+
+
+def test_domain_gate_rejects_job_with_no_keyword_match(sample_criteria, filter_cfg, fx_rates):
+    scoring_cfg = ScoringConfig(domain_as_gate=True)
+    sample_criteria.working_mode = "any"
+    job = _job_row(work_type="remote", description="totally unrelated sales role")
+    passed, reason = evaluate_gates(job, sample_criteria, filter_cfg, fx_rates, scoring_cfg)
+    assert passed is False
+    assert reason == "domain_not_matched"
+
+
+def test_domain_gate_passes_job_with_keyword_match(sample_criteria, filter_cfg, fx_rates):
+    scoring_cfg = ScoringConfig(domain_as_gate=True)
+    sample_criteria.working_mode = "any"
+    job = _job_row(work_type="remote", description="fixed income trading desk")
+    passed, _ = evaluate_gates(job, sample_criteria, filter_cfg, fx_rates, scoring_cfg)
+    assert passed is True
+
+
+def test_domain_gate_inactive_by_default(sample_criteria, filter_cfg, fx_rates):
+    scoring_cfg = ScoringConfig(domain_as_gate=False)
+    sample_criteria.working_mode = "any"
+    job = _job_row(work_type="remote", description="totally unrelated sales role")
+    passed, _ = evaluate_gates(job, sample_criteria, filter_cfg, fx_rates, scoring_cfg)
+    assert passed is True
+
+
+def test_domain_gate_skipped_when_criteria_has_no_domain_keywords(sample_criteria, filter_cfg, fx_rates):
+    scoring_cfg = ScoringConfig(domain_as_gate=True)
+    sample_criteria.working_mode = "any"
+    sample_criteria.domain_keywords = []
+    job = _job_row(work_type="remote", description="totally unrelated sales role")
+    passed, _ = evaluate_gates(job, sample_criteria, filter_cfg, fx_rates, scoring_cfg)
     assert passed is True

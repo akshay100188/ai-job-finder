@@ -23,6 +23,7 @@
     Location: {{ criteria.location }} &middot;
     Mode: {{ criteria.working_mode }} &middot;
     Min pay: {{ criteria.pay_min }} {{ criteria.pay_currency }}
+    {% if criteria.domain_keywords %}&middot; Domain: {{ criteria.domain_keywords | join(', ') }}{% endif %}
   </div>
 
   <div class="flex items-center justify-between mb-4">
@@ -72,6 +73,9 @@
     <label class="block text-sm">Pay currency
       <input id="f-pay-currency" class="w-full border rounded px-2 py-1" value="{{ criteria.pay_currency if criteria else 'INR' }}">
     </label>
+    <label class="block text-sm">Domain keywords to boost (comma-separated, optional, up to 10)
+      <input id="f-domain-keywords" class="w-full border rounded px-2 py-1" value="{{ criteria.domain_keywords | join(', ') if criteria else '' }}">
+    </label>
     <label class="flex items-center gap-2 text-sm">
       <input id="f-full-reset" type="checkbox"> Also clear learned label history (full reset)
     </label>
@@ -107,6 +111,10 @@ function inrTooltip(job) {
 
 function jobCard(job) {
   const skillsTitle = (job.skills_matched_list || []).join(", ");
+  const domainMatched = job.domain_matched_list || [];
+  const domainLine = domainMatched.length
+    ? `<div class="text-xs text-emerald-700" title="${escapeHtml(domainMatched.join(", "))}">${domainMatched.length} domain keyword(s) matched</div>`
+    : "";
   const posterLine = (job.poster_name || job.poster_email)
     ? `<div class="text-xs text-gray-500">Posted by: ${escapeHtml(job.poster_name || "")} ${escapeHtml(job.poster_email || "")}</div>`
     : "";
@@ -126,6 +134,7 @@ function jobCard(job) {
         <div class="text-sm text-gray-600">${escapeHtml(job.company)} &middot; ${escapeHtml(job.location || "")} &middot; ${escapeHtml(job.work_type)}</div>
         <div class="text-sm text-gray-600" title="${escapeHtml(inrTooltip(job))}">${escapeHtml(formatSalary(job))}</div>
         <div class="text-sm" title="Matched: ${escapeHtml(skillsTitle)}">Score ${job.score.toFixed(2)} &middot; ${job.skills_matched} skills matched (${escapeHtml(job.model_source)})</div>
+        ${domainLine}
         ${posterLine}
         <a href="${escapeHtml(job.url)}" target="_blank" class="text-sm text-blue-600 underline">Apply link</a>
         <div id="tailor-${job.job_id}" class="text-xs mt-1"></div>
@@ -220,6 +229,7 @@ async function submitCriteria() {
     working_mode: document.getElementById("f-working-mode").value,
     pay_min: parseFloat(document.getElementById("f-pay-min").value || "0"),
     pay_currency: document.getElementById("f-pay-currency").value.trim() || "INR",
+    domain_keywords: document.getElementById("f-domain-keywords").value.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10),
   };
   const res = await fetch("/api/update-criteria", {
     method: "POST",

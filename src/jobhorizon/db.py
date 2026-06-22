@@ -16,9 +16,20 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, coltype: str) -> None:
+    """CREATE TABLE IF NOT EXISTS doesn't retrofit columns onto an existing installs'
+    table, so new columns need an explicit ALTER TABLE migration."""
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     with open(SCHEMA_PATH, encoding="utf-8") as f:
         conn.executescript(f.read())
+    _ensure_column(conn, "criteria", "domain_keywords", "TEXT")
+    _ensure_column(conn, "job_score", "domain_hits", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "job_score", "domain_matched_list", "TEXT")
     conn.commit()
 
 
@@ -37,8 +48,8 @@ def insert_criteria(conn: sqlite3.Connection, row: dict) -> int:
     conn.execute("UPDATE criteria SET active = 0 WHERE active = 1")
     cur = conn.execute(
         """INSERT INTO criteria (titles, skills, location, working_mode, pay_min,
-               pay_currency, score_threshold, created_at, active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+               pay_currency, score_threshold, domain_keywords, created_at, active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
         (
             row["titles"],
             row["skills"],
@@ -47,6 +58,7 @@ def insert_criteria(conn: sqlite3.Connection, row: dict) -> int:
             row["pay_min"],
             row["pay_currency"],
             row.get("score_threshold", 0.0),
+            row.get("domain_keywords", "[]"),
             now_iso(),
         ),
     )
@@ -134,13 +146,14 @@ def upsert_job(conn: sqlite3.Connection, row: dict) -> bool:
 def replace_job_score(conn: sqlite3.Connection, row: dict) -> None:
     conn.execute(
         """INSERT INTO job_score (job_id, gate_passed, gate_reason, skills_matched,
-               skills_matched_list, score, model_source)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+               skills_matched_list, score, model_source, domain_hits, domain_matched_list)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(job_id) DO UPDATE SET
                gate_passed=excluded.gate_passed, gate_reason=excluded.gate_reason,
                skills_matched=excluded.skills_matched,
                skills_matched_list=excluded.skills_matched_list,
-               score=excluded.score, model_source=excluded.model_source""",
+               score=excluded.score, model_source=excluded.model_source,
+               domain_hits=excluded.domain_hits, domain_matched_list=excluded.domain_matched_list""",
         (
             row["job_id"],
             int(row["gate_passed"]),
@@ -149,6 +162,8 @@ def replace_job_score(conn: sqlite3.Connection, row: dict) -> None:
             row.get("skills_matched_list"),
             row.get("score", 0.0),
             row.get("model_source", "deterministic"),
+            row.get("domain_hits", 0),
+            row.get("domain_matched_list", "[]"),
         ),
     )
 
@@ -186,6 +201,7 @@ def get_job_with_score(conn: sqlite3.Connection, job_id: str) -> dict | None:
 def _job_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["skills_matched_list"] = json.loads(d.get("skills_matched_list") or "[]")
+    d["domain_matched_list"] = json.loads(d.get("domain_matched_list") or "[]")
     d["gate_passed"] = bool(d["gate_passed"])
     return d
 
@@ -194,7 +210,8 @@ def fetch_jobs_for_tab(conn: sqlite3.Connection, tab: str, threshold: float) -> 
     where = KEPT_WHERE if tab == "kept" else DISCARDED_WHERE
     rows = conn.execute(
         f"""SELECT j.*, s.gate_passed, s.gate_reason, s.skills_matched, s.skills_matched_list,
-                   s.score, s.model_source, r.status, r.from_discard
+                   s.score, s.model_source, s.domain_hits, s.domain_matched_list,
+                   r.status, r.from_discard
             FROM jobs j
             JOIN job_score s ON j.job_id = s.job_id
             JOIN review r ON j.job_id = r.job_id
@@ -208,7 +225,7 @@ def fetch_jobs_for_tab(conn: sqlite3.Connection, tab: str, threshold: float) -> 
 def fetch_all_jobs_for_export(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         """SELECT j.*, s.gate_passed, s.gate_reason, s.skills_matched, s.skills_matched_list,
-                  s.score, s.model_source, r.status
+                  s.score, s.model_source, s.domain_hits, s.domain_matched_list, r.status
            FROM jobs j
            JOIN job_score s ON j.job_id = s.job_id
            JOIN review r ON j.job_id = r.job_id

@@ -19,14 +19,16 @@ def score_job(job_row: dict, criteria: Criteria, scoring_cfg: ScoringConfig) -> 
             matched_weight += weight
 
     base_score = (matched_weight / total_weight) if total_weight > 0 else 0.0
-    domain_hit = any(
-        re.search(r"\b" + re.escape(kw.lower()) + r"\b", text) for kw in scoring_cfg.domain_keywords
-    )
-    score = base_score + (scoring_cfg.domain_boost if domain_hit else 0.0)
+    domain_matched = [
+        kw for kw in criteria.domain_keywords if re.search(r"\b" + re.escape(kw.lower()) + r"\b", text)
+    ]
+    score = base_score + (scoring_cfg.domain_boost if domain_matched else 0.0)
     score = max(0.0, min(1.0, score))
 
     return {
         "skills_matched": len(matched),
         "skills_matched_list": json.dumps(matched),
         "score": score,
+        "domain_hits": len(domain_matched),
+        "domain_matched_list": json.dumps(domain_matched),
     }

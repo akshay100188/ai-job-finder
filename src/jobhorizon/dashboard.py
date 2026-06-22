@@ -23,6 +23,8 @@ EXPORT_COLUMNS = [
     "model_source",
     "skills_matched",
     "skills_matched_list",
+    "domain_hits",
+    "domain_matched_list",
     "salary_min",
     "salary_max",
     "salary_currency",
@@ -115,6 +117,7 @@ def create_app() -> Flask:
             working_mode=payload.get("working_mode", "any"),
             pay_min=float(payload.get("pay_min", 0)),
             pay_currency=payload.get("pay_currency", "INR"),
+            domain_keywords=payload.get("domain_keywords", [])[:10],
         )
         criteria_mod.save_criteria(conn, criteria)
         conn.close()
@@ -132,7 +135,7 @@ def create_app() -> Flask:
             values = []
             for col in EXPORT_COLUMNS:
                 val = row.get(col, "")
-                if col == "skills_matched_list":
+                if col in ("skills_matched_list", "domain_matched_list"):
                     val = "|".join(val or [])
                 text = "" if val is None else str(val)
                 values.append('"' + text.replace('"', '""') + '"')

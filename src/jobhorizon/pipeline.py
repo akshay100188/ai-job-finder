@@ -40,7 +40,7 @@ def run_pipeline(conn: sqlite3.Connection, criteria: Criteria, app_config: AppCo
             n_new += 1
 
         gate_passed, gate_reason = evaluate_gates(
-            job_row, criteria, app_config.filter, app_config.fx_rates_to_inr
+            job_row, criteria, app_config.filter, app_config.fx_rates_to_inr, app_config.scoring
         )
         score_result = score_job(job_row, criteria, app_config.scoring)
         db.replace_job_score(

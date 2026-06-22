@@ -35,6 +35,7 @@ def sample_criteria():
         pay_min=1500000,
         pay_currency="INR",
         score_threshold=0.0,
+        domain_keywords=["fixed income", "capital markets"],
     )
 
 
@@ -54,7 +55,6 @@ def filter_cfg():
 def scoring_cfg():
     return ScoringConfig(
         skill_weights={},
-        domain_keywords=["fixed income", "capital markets"],
         domain_boost=0.1,
         learner_min_labels=40,
     )

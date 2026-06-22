@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS criteria (
     location TEXT, working_mode TEXT,
     pay_min REAL, pay_currency TEXT,
     score_threshold REAL DEFAULT 0.0,
+    domain_keywords TEXT,                -- JSON array, user-entered (Phase 4)
     created_at TEXT, active INTEGER DEFAULT 1
 );
 
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS job_score (                 -- cleared on criteria up
     gate_passed INTEGER, gate_reason TEXT,
     skills_matched INTEGER, skills_matched_list TEXT,  -- JSON
     score REAL,                          -- alignment 0..1, shown to user
-    model_source TEXT                    -- 'deterministic' | 'learner'
+    model_source TEXT,                   -- 'deterministic' | 'learner'
+    domain_hits INTEGER DEFAULT 0, domain_matched_list TEXT  -- JSON (Phase 4)
 );
 
 CREATE TABLE IF NOT EXISTS review (                    -- cleared on criteria update

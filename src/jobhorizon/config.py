@@ -23,8 +23,8 @@ class FilterConfig:
 @dataclass
 class ScoringConfig:
     skill_weights: dict = field(default_factory=dict)
-    domain_keywords: list[str] = field(default_factory=list)
     domain_boost: float = 0.1
+    domain_as_gate: bool = False
     learner_min_labels: int = 40
 
 
@@ -74,8 +74,8 @@ def load_config() -> AppConfig:
     scoring_raw = raw.get("scoring", {})
     scoring_cfg = ScoringConfig(
         skill_weights=scoring_raw.get("skill_weights", {}) or {},
-        domain_keywords=scoring_raw.get("domain_keywords", []) or [],
         domain_boost=scoring_raw.get("domain_boost", 0.1),
+        domain_as_gate=scoring_raw.get("domain_as_gate", False),
         learner_min_labels=scoring_raw.get("learner_min_labels", 40),
     )
 

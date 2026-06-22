@@ -1,4 +1,6 @@
-from jobhorizon.config import FilterConfig
+import re
+
+from jobhorizon.config import FilterConfig, ScoringConfig
 from jobhorizon.criteria import Criteria
 
 
@@ -16,9 +18,26 @@ def _location_gate(location: str | None, accept: list[str], reject: list[str]) -
     return True, "passed"
 
 
+def _domain_gate(job_row: dict, criteria: Criteria) -> bool:
+    text = f"{job_row.get('title', '')} {job_row.get('description', '')}".lower()
+    return any(re.search(r"\b" + re.escape(kw.lower()) + r"\b", text) for kw in criteria.domain_keywords)
+
+
 def evaluate_gates(
-    job_row: dict, criteria: Criteria, filter_cfg: FilterConfig, fx_rates: dict
+    job_row: dict,
+    criteria: Criteria,
+    filter_cfg: FilterConfig,
+    fx_rates: dict,
+    scoring_cfg: ScoringConfig | None = None,
 ) -> tuple[bool, str]:
+    if (
+        scoring_cfg is not None
+        and scoring_cfg.domain_as_gate
+        and criteria.domain_keywords
+        and not _domain_gate(job_row, criteria)
+    ):
+        return False, "domain_not_matched"
+
     # pay gate
     salary_max_inr = job_row.get("salary_max_inr")
     pay_min_rate = fx_rates.get((criteria.pay_currency or "INR").upper())

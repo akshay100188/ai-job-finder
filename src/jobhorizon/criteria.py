@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from jobhorizon import db
 
@@ -14,6 +14,7 @@ class Criteria:
     pay_min: float
     pay_currency: str
     score_threshold: float = 0.0
+    domain_keywords: list[str] = field(default_factory=list)
     id: int | None = None
 
     @staticmethod
@@ -26,6 +27,7 @@ class Criteria:
             pay_min=row["pay_min"],
             pay_currency=row["pay_currency"],
             score_threshold=row["score_threshold"],
+            domain_keywords=json.loads(row["domain_keywords"] or "[]"),
             id=row["id"],
         )
 
@@ -46,6 +48,7 @@ def save_criteria(conn: sqlite3.Connection, criteria: Criteria) -> Criteria:
             "pay_min": criteria.pay_min,
             "pay_currency": criteria.pay_currency,
             "score_threshold": criteria.score_threshold,
+            "domain_keywords": json.dumps(criteria.domain_keywords),
         },
     )
     criteria.id = new_id
@@ -68,6 +71,9 @@ def prompt_criteria_cli() -> Criteria:
         working_mode = input("Working mode [remote/hybrid/any]: ").strip().lower()
     pay_min = float(input("Minimum acceptable pay: ").strip())
     pay_currency = input("Pay currency (e.g. INR, USD): ").strip().upper()
+    domain_keywords = _prompt_list(
+        "Domain keywords to boost, e.g. 'fixed income, fintech' (optional, up to 10)", max_items=10
+    )
     return Criteria(
         titles=titles,
         skills=skills,
@@ -75,6 +81,7 @@ def prompt_criteria_cli() -> Criteria:
         working_mode=working_mode,
         pay_min=pay_min,
         pay_currency=pay_currency,
+        domain_keywords=domain_keywords,
     )
 
 

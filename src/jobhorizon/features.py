@@ -2,8 +2,9 @@ import json
 import re
 import sqlite3
 
+from jobhorizon import criteria as criteria_mod
 from jobhorizon import db
-from jobhorizon.config import AppConfig, LocationAliases, ScoringConfig
+from jobhorizon.config import AppConfig, LocationAliases
 
 # Fixed INR (lakh) buckets for the learner's salary feature -- a deliberate
 # simplification per the brief ("keep features simple to avoid overfitting").
@@ -35,13 +36,13 @@ def _location_match(location: str | None, accept_aliases: list[str]) -> bool:
 
 
 def extract_feature_dict(
-    job_row: dict, scoring_cfg: ScoringConfig, location_aliases: LocationAliases
+    job_row: dict, domain_keywords: list[str], location_aliases: LocationAliases
 ) -> dict:
     text = f"{job_row.get('title', '')} {job_row.get('description', '')}"
     return {
         "title": job_row.get("title", ""),
         "skills_matched": job_row.get("skills_matched", 0),
-        "domain_hits": _count_domain_hits(text, scoring_cfg.domain_keywords),
+        "domain_hits": _count_domain_hits(text, domain_keywords),
         "source": job_row.get("source", ""),
         "work_type": job_row.get("work_type", "unknown"),
         "salary_band": _salary_band(job_row.get("salary_min_inr")),
@@ -56,7 +57,9 @@ def record_label(
     if job_row is None:
         raise ValueError(f"unknown job_id: {job_id}")
 
-    feature_dict = extract_feature_dict(job_row, app_config.scoring, app_config.filter.location_aliases)
+    criteria = criteria_mod.load_active_criteria(conn)
+    domain_keywords = criteria.domain_keywords if criteria else []
+    feature_dict = extract_feature_dict(job_row, domain_keywords, app_config.filter.location_aliases)
     db.insert_label(
         conn,
         {

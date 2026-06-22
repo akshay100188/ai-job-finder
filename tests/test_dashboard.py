@@ -199,6 +199,64 @@ def test_api_export_csv_returns_csv_content_type(client, conn):
     assert "j1" in res.get_data(as_text=True)
 
 
+def test_api_export_csv_includes_domain_matched_list(client, conn):
+    _seed_criteria(conn)
+    _seed_job(conn, "j1", score=0.8, gate_passed=True)
+    db.replace_job_score(
+        conn,
+        {
+            "job_id": "j1",
+            "gate_passed": True,
+            "gate_reason": "passed",
+            "skills_matched": 1,
+            "skills_matched_list": '["Python"]',
+            "score": 0.8,
+            "model_source": "deterministic",
+            "domain_hits": 1,
+            "domain_matched_list": json.dumps(["fixed income"]),
+        },
+    )
+    conn.commit()
+    res = client.get("/api/export.csv")
+    assert "fixed income" in res.get_data(as_text=True)
+
+
+def test_api_update_criteria_round_trips_domain_keywords(client, conn):
+    res = client.post(
+        "/api/update-criteria",
+        json={
+            "titles": ["X"],
+            "skills": [],
+            "location": "",
+            "working_mode": "any",
+            "pay_min": 0,
+            "pay_currency": "INR",
+            "domain_keywords": ["fixed income", "capital markets"],
+        },
+    )
+    assert res.status_code == 200
+    new_criteria = conn.execute("SELECT domain_keywords FROM criteria WHERE active=1").fetchone()
+    assert json.loads(new_criteria["domain_keywords"]) == ["fixed income", "capital markets"]
+
+
+def test_api_update_criteria_caps_domain_keywords_at_ten(client, conn):
+    res = client.post(
+        "/api/update-criteria",
+        json={
+            "titles": ["X"],
+            "skills": [],
+            "location": "",
+            "working_mode": "any",
+            "pay_min": 0,
+            "pay_currency": "INR",
+            "domain_keywords": [f"kw{i}" for i in range(15)],
+        },
+    )
+    assert res.status_code == 200
+    new_criteria = conn.execute("SELECT domain_keywords FROM criteria WHERE active=1").fetchone()
+    assert len(json.loads(new_criteria["domain_keywords"])) == 10
+
+
 def test_api_tailor_requires_job_id(client, conn):
     res = client.post("/api/tailor", json={})
     assert res.status_code == 400

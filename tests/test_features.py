@@ -2,8 +2,11 @@ import json
 
 import pytest
 
+from jobhorizon import criteria as criteria_mod
 from jobhorizon import db, features
 from jobhorizon.config import AppConfig, Secrets
+
+DOMAIN_KEYWORDS = ["fixed income", "capital markets"]
 
 
 def _insert_job_and_score(conn, **overrides):
@@ -45,7 +48,7 @@ def _insert_job_and_score(conn, **overrides):
     return job["job_id"]
 
 
-def test_extract_feature_dict_salary_band_domain_hits_and_location_match(scoring_cfg, filter_cfg):
+def test_extract_feature_dict_salary_band_domain_hits_and_location_match(filter_cfg):
     job_row = {
         "title": "Python Backend Engineer",
         "description": "fixed income capital markets desk",
@@ -55,7 +58,7 @@ def test_extract_feature_dict_salary_band_domain_hits_and_location_match(scoring
         "salary_min_inr": 1200000,
         "location": "Noida, India",
     }
-    feats = features.extract_feature_dict(job_row, scoring_cfg, filter_cfg.location_aliases)
+    feats = features.extract_feature_dict(job_row, DOMAIN_KEYWORDS, filter_cfg.location_aliases)
 
     assert feats["salary_band"] == "10-20L"
     assert feats["domain_hits"] == 2
@@ -65,14 +68,14 @@ def test_extract_feature_dict_salary_band_domain_hits_and_location_match(scoring
     assert feats["work_type"] == "hybrid"
 
 
-def test_extract_feature_dict_unknown_salary_band_when_missing(scoring_cfg, filter_cfg):
+def test_extract_feature_dict_unknown_salary_band_when_missing(filter_cfg):
     job_row = {"title": "x", "description": "", "skills_matched": 0, "source": "x", "work_type": "unknown"}
-    feats = features.extract_feature_dict(job_row, scoring_cfg, filter_cfg.location_aliases)
+    feats = features.extract_feature_dict(job_row, DOMAIN_KEYWORDS, filter_cfg.location_aliases)
     assert feats["salary_band"] == "unknown"
     assert feats["location_match"] is False
 
 
-def test_extract_feature_dict_location_no_match(scoring_cfg, filter_cfg):
+def test_extract_feature_dict_location_no_match(filter_cfg):
     job_row = {
         "title": "x",
         "description": "",
@@ -81,11 +84,12 @@ def test_extract_feature_dict_location_no_match(scoring_cfg, filter_cfg):
         "work_type": "unknown",
         "location": "Gurgaon",
     }
-    feats = features.extract_feature_dict(job_row, scoring_cfg, filter_cfg.location_aliases)
+    feats = features.extract_feature_dict(job_row, DOMAIN_KEYWORDS, filter_cfg.location_aliases)
     assert feats["location_match"] is False
 
 
-def test_record_label_writes_row(conn, scoring_cfg, filter_cfg, fx_rates):
+def test_record_label_writes_row(conn, sample_criteria, scoring_cfg, filter_cfg, fx_rates):
+    criteria_mod.save_criteria(conn, sample_criteria)
     job_id = _insert_job_and_score(conn)
     app_config = AppConfig(
         sources={}, filter=filter_cfg, scoring=scoring_cfg, fx_rates_to_inr=fx_rates, secrets=Secrets()
@@ -102,6 +106,20 @@ def test_record_label_writes_row(conn, scoring_cfg, filter_cfg, fx_rates):
     feature_dict = json.loads(row["feature_json"])
     assert feature_dict["source"] == "remoteok"
     assert feature_dict["salary_band"] == "10-20L"
+
+
+def test_record_label_no_active_criteria_defaults_to_no_domain_keywords(
+    conn, scoring_cfg, filter_cfg, fx_rates
+):
+    job_id = _insert_job_and_score(conn)
+    app_config = AppConfig(
+        sources={}, filter=filter_cfg, scoring=scoring_cfg, fx_rates_to_inr=fx_rates, secrets=Secrets()
+    )
+
+    features.record_label(conn, job_id, relevant=True, from_discard=False, app_config=app_config)
+
+    row = conn.execute("SELECT * FROM labels").fetchone()
+    assert row["domain_hits"] == 0
 
 
 def test_record_label_unknown_job_raises(conn, scoring_cfg, filter_cfg, fx_rates):

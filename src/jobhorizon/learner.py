@@ -10,7 +10,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from jobhorizon import db
-from jobhorizon.config import AppConfig, LocationAliases, ScoringConfig
+from jobhorizon.config import AppConfig, LocationAliases
 from jobhorizon.criteria import Criteria
 from jobhorizon.features import extract_feature_dict
 from jobhorizon.logging_setup import get_logger
@@ -87,10 +87,10 @@ def train_model(conn: sqlite3.Connection) -> tuple[Pipeline | None, dict]:
 def score_with_learner(
     pipeline: Pipeline,
     job_rows: list[dict],
-    scoring_cfg: ScoringConfig,
+    domain_keywords: list[str],
     location_aliases: LocationAliases,
 ) -> list[float]:
-    feature_dicts = [extract_feature_dict(row, scoring_cfg, location_aliases) for row in job_rows]
+    feature_dicts = [extract_feature_dict(row, domain_keywords, location_aliases) for row in job_rows]
     df = _to_frame(feature_dicts)
     probs = pipeline.predict_proba(df)
     classes = list(pipeline.classes_)
@@ -111,7 +111,7 @@ def maybe_retrain_and_rescore(
     job_rows = db.fetch_all_jobs_for_export(conn)
     if job_rows:
         scores = score_with_learner(
-            pipeline, job_rows, app_config.scoring, app_config.filter.location_aliases
+            pipeline, job_rows, criteria.domain_keywords, app_config.filter.location_aliases
         )
         for row, score in zip(job_rows, scores, strict=True):
             db.replace_job_score(
