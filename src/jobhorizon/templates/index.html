@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JobHorizon</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+<div class="max-w-5xl mx-auto p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">JobHorizon</h1>
+    <div class="flex gap-2">
+      <a href="/api/export.csv" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-100">Export CSV</a>
+      <button id="update-criteria-btn" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-100">Update criteria</button>
+    </div>
+  </div>
+
+  {% if criteria %}
+  <div class="text-sm text-gray-600 mb-4">
+    Titles: {{ criteria.titles | join(', ') }} &middot;
+    Skills: {{ criteria.skills | join(', ') }} &middot;
+    Location: {{ criteria.location }} &middot;
+    Mode: {{ criteria.working_mode }} &middot;
+    Min pay: {{ criteria.pay_min }} {{ criteria.pay_currency }}
+  </div>
+
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex gap-2">
+      <button id="tab-kept" class="px-4 py-2 rounded font-medium">Kept</button>
+      <button id="tab-discarded" class="px-4 py-2 rounded font-medium">Discarded</button>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <label for="threshold-slider">Score threshold</label>
+      <input id="threshold-slider" type="range" min="0" max="1" step="0.05" value="{{ criteria.score_threshold }}">
+      <span id="threshold-value">{{ criteria.score_threshold }}</span>
+    </div>
+  </div>
+
+  <div id="job-list" class="space-y-3"></div>
+  <div id="empty-state" class="text-gray-500 text-sm hidden">No jobs in this tab.</div>
+  {% else %}
+  <p class="text-gray-600 mb-4">No active search criteria yet. Set one up to get started.</p>
+  {% endif %}
+</div>
+
+<div id="criteria-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg p-6 max-w-md w-full space-y-3">
+    <h2 class="text-lg font-bold">{{ 'Update' if criteria else 'Set up' }} criteria</h2>
+    <p id="update-warning" class="text-sm text-amber-700 {{ '' if criteria else 'hidden' }}">
+      Updating criteria clears your current listings and starts a fresh search. Your learned preferences are kept.
+    </p>
+    <label class="block text-sm">Job titles (comma-separated, up to 5)
+      <input id="f-titles" class="w-full border rounded px-2 py-1" value="{{ criteria.titles | join(', ') if criteria else '' }}">
+    </label>
+    <label class="block text-sm">Skills (comma-separated)
+      <input id="f-skills" class="w-full border rounded px-2 py-1" value="{{ criteria.skills | join(', ') if criteria else '' }}">
+    </label>
+    <label class="block text-sm">Location
+      <input id="f-location" class="w-full border rounded px-2 py-1" value="{{ criteria.location if criteria else '' }}">
+    </label>
+    <label class="block text-sm">Working mode
+      <select id="f-working-mode" class="w-full border rounded px-2 py-1">
+        <option value="remote" {{ 'selected' if criteria and criteria.working_mode == 'remote' else '' }}>remote</option>
+        <option value="hybrid" {{ 'selected' if criteria and criteria.working_mode == 'hybrid' else '' }}>hybrid</option>
+        <option value="any" {{ 'selected' if not criteria or criteria.working_mode == 'any' else '' }}>any</option>
+      </select>
+    </label>
+    <label class="block text-sm">Minimum pay
+      <input id="f-pay-min" type="number" class="w-full border rounded px-2 py-1" value="{{ criteria.pay_min if criteria else '' }}">
+    </label>
+    <label class="block text-sm">Pay currency
+      <input id="f-pay-currency" class="w-full border rounded px-2 py-1" value="{{ criteria.pay_currency if criteria else 'INR' }}">
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input id="f-full-reset" type="checkbox"> Also clear learned label history (full reset)
+    </label>
+    <div class="flex justify-end gap-2 pt-2">
+      <button id="criteria-cancel-btn" class="px-3 py-1.5 text-sm rounded border border-gray-300">Cancel</button>
+      <button id="criteria-confirm-btn" class="px-3 py-1.5 text-sm rounded bg-blue-600 text-white">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const hasCriteria = {{ 'true' if criteria else 'false' }};
+let currentTab = "kept";
+let threshold = {{ criteria.score_threshold if criteria else 0 }};
+
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value === null || value === undefined ? "" : String(value);
+  return div.innerHTML;
+}
+
+function formatSalary(job) {
+  if (job.salary_min == null && job.salary_max == null) return "n/a";
+  const parts = [job.salary_min, job.salary_max].filter((v) => v != null).join(" - ");
+  return `${parts} ${job.salary_currency || ""}`.trim();
+}
+
+function inrTooltip(job) {
+  if (job.salary_min_inr == null && job.salary_max_inr == null) return "";
+  const parts = [job.salary_min_inr, job.salary_max_inr].filter((v) => v != null).join(" - ");
+  return `~INR ${parts}`;
+}
+
+function jobCard(job) {
+  const skillsTitle = (job.skills_matched_list || []).join(", ");
+  const posterLine = (job.poster_name || job.poster_email)
+    ? `<div class="text-xs text-gray-500">Posted by: ${escapeHtml(job.poster_name || "")} ${escapeHtml(job.poster_email || "")}</div>`
+    : "";
+  const externalIdLine = job.external_id ? `<span class="text-xs text-gray-400">#${escapeHtml(job.external_id)}</span>` : "";
+
+  return `
+    <div class="bg-white border rounded-lg p-4 flex justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold">${escapeHtml(job.title)}</span>
+          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">${escapeHtml(job.source)}</span>
+          ${externalIdLine}
+        </div>
+        <div class="text-sm text-gray-600">${escapeHtml(job.company)} &middot; ${escapeHtml(job.location || "")} &middot; ${escapeHtml(job.work_type)}</div>
+        <div class="text-sm text-gray-600" title="${escapeHtml(inrTooltip(job))}">${escapeHtml(formatSalary(job))}</div>
+        <div class="text-sm" title="Matched: ${escapeHtml(skillsTitle)}">Score ${job.score.toFixed(2)} &middot; ${job.skills_matched} skills matched (${escapeHtml(job.model_source)})</div>
+        ${posterLine}
+        <a href="${escapeHtml(job.url)}" target="_blank" class="text-sm text-blue-600 underline">Apply link</a>
+      </div>
+      <div class="flex flex-col gap-1 shrink-0">
+        <button class="px-3 py-1 text-sm rounded bg-green-600 text-white" onclick="mark('${job.job_id}', true)">Relevant</button>
+        <button class="px-3 py-1 text-sm rounded bg-red-600 text-white" onclick="mark('${job.job_id}', false)">Irrelevant</button>
+      </div>
+    </div>`;
+}
+
+async function loadJobs() {
+  const res = await fetch(`/api/jobs?tab=${currentTab}&threshold=${threshold}`);
+  const jobs = await res.json();
+  const list = document.getElementById("job-list");
+  const empty = document.getElementById("empty-state");
+  list.innerHTML = jobs.map(jobCard).join("");
+  empty.classList.toggle("hidden", jobs.length > 0);
+}
+
+function setActiveTab(tab) {
+  currentTab = tab;
+  for (const name of ["kept", "discarded"]) {
+    const btn = document.getElementById(`tab-${name}`);
+    btn.className = name === tab
+      ? "px-4 py-2 rounded font-medium bg-blue-600 text-white"
+      : "px-4 py-2 rounded font-medium bg-gray-200";
+  }
+  loadJobs();
+}
+
+async function mark(jobId, relevant) {
+  await fetch("/api/mark", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId, relevant, from_discard: currentTab === "discarded" }),
+  });
+  loadJobs();
+}
+
+function openCriteriaModal() {
+  document.getElementById("criteria-modal").classList.remove("hidden");
+}
+
+function closeCriteriaModal() {
+  document.getElementById("criteria-modal").classList.add("hidden");
+}
+
+async function submitCriteria() {
+  if (hasCriteria) {
+    const ok = confirm(
+      "Updating criteria clears your current listings and starts a fresh search. " +
+      "Your learned preferences are kept unless you checked full reset. Proceed?"
+    );
+    if (!ok) return;
+  }
+  const payload = {
+    confirm: true,
+    full_reset: document.getElementById("f-full-reset").checked,
+    titles: document.getElementById("f-titles").value.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5),
+    skills: document.getElementById("f-skills").value.split(",").map((s) => s.trim()).filter(Boolean),
+    location: document.getElementById("f-location").value.trim(),
+    working_mode: document.getElementById("f-working-mode").value,
+    pay_min: parseFloat(document.getElementById("f-pay-min").value || "0"),
+    pay_currency: document.getElementById("f-pay-currency").value.trim() || "INR",
+  };
+  const res = await fetch("/api/update-criteria", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    const body = await res.json();
+    alert(body.error || "Failed to update criteria");
+  }
+}
+
+document.getElementById("update-criteria-btn").addEventListener("click", openCriteriaModal);
+document.getElementById("criteria-cancel-btn").addEventListener("click", closeCriteriaModal);
+document.getElementById("criteria-confirm-btn").addEventListener("click", submitCriteria);
+
+if (hasCriteria) {
+  const slider = document.getElementById("threshold-slider");
+  const valueLabel = document.getElementById("threshold-value");
+  slider.addEventListener("input", () => { valueLabel.textContent = slider.value; });
+  slider.addEventListener("change", async () => {
+    threshold = parseFloat(slider.value);
+    await fetch("/api/threshold", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: threshold }),
+    });
+    loadJobs();
+  });
+
+  document.getElementById("tab-kept").addEventListener("click", () => setActiveTab("kept"));
+  document.getElementById("tab-discarded").addEventListener("click", () => setActiveTab("discarded"));
+  setActiveTab("kept");
+} else {
+  openCriteriaModal();
+}
+</script>
+</body>
+</html>
